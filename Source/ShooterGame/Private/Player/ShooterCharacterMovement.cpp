@@ -34,7 +34,6 @@ float UShooterCharacterMovement::GetMaxSpeed() const
 
 FSavedMovePtr UShooterCharacterMovement::AllocateNewMove()
 {
-	
 	return FSavedMovePtr(new UShooterSavedMove_Character());
 }
 
@@ -52,7 +51,21 @@ bool UShooterCharacterMovement::DoTeleport(bool bReplayingMoves)
 void UShooterCharacterMovement::UpdateFromCompressedFlags(uint8 Flags)
 {
 	Super::UpdateFromCompressedFlags(Flags);
-	bIsPressingTeleport = ((Flags & UShooterSavedMove_Character::FLAG_Custom_0) != 0);
+	
+	AShooterCharacter* ShooterCharacterOwner = Cast<AShooterCharacter>(CharacterOwner);
+	bool bWasPressingTeleport = ShooterCharacterOwner->bPressedTeleport;
+	ShooterCharacterOwner->bPressedTeleport = ((Flags & UShooterSavedMove_Character::FLAG_Custom_0) != 0);
+	if (CharacterOwner->GetLocalRole() == ROLE_Authority)
+	{
+		bIsPressingTeleport = ShooterCharacterOwner->bPressedTeleport;
+		if (bIsPressingTeleport && !bWasPressingTeleport)
+		{
+			ShooterCharacterOwner->OnStartTeleport();
+		}else if(!bIsPressingTeleport)
+		{
+			ShooterCharacterOwner->OnStopTeleport();
+		}
+	}
 }
 
 void UShooterCharacterMovement::OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation,
@@ -60,10 +73,17 @@ void UShooterCharacterMovement::OnMovementUpdated(float DeltaSeconds, const FVec
 {
 	Super::OnMovementUpdated(DeltaSeconds, OldLocation, OldVelocity);
 	
+	AShooterCharacter* ShooterCharacterOwner = Cast<AShooterCharacter>(CharacterOwner);
+	bIsPressingTeleport = ShooterCharacterOwner->bPressedTeleport;
 	if(bIsPressingTeleport)
 	{
-		//TODO perform movement
+		FVector CharacterForwardVector = CharacterOwner->GetActorForwardVector();
+		FRotator CharacterRotation = CharacterOwner->GetActorRotation();
+		FHitResult Hit;
+		//Perform teleport using UMovementComponent::SafeMoveUpdatedComponent
+		SafeMoveUpdatedComponent(CharacterForwardVector*TeleportDistance, CharacterRotation, true, Hit, ETeleportType::TeleportPhysics);
 		bIsPressingTeleport = false;
+		ShooterCharacterOwner->bPressedTeleport = false;
 	}
 }
 

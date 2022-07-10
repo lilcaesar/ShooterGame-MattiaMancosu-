@@ -12,9 +12,14 @@ class UShooterCharacterMovement : public UCharacterMovementComponent
 {
 	GENERATED_UCLASS_BODY()
 
+	//Teleport distance in centimeters, default is 1000 (10 meters)
+	UPROPERTY(EditAnywhere, Category = "Teleport")
+	float TeleportDistance = 1000.f;
+
 	virtual float GetMaxSpeed() const override;
 
 	virtual FSavedMovePtr AllocateNewMove();
+	
 	/**
 	* Perform Teleport. Called by Character when a teleport has been detected because ShooterCharacter->bPressedTeleport was true. Checks ShooterCharacter->CanTeleport().
 	* @param	bReplayingMoves: true if this is being done as part of replaying moves on a locally controlled client after a server correction.
