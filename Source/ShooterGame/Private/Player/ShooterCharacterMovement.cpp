@@ -9,8 +9,23 @@
 UShooterCharacterMovement::UShooterCharacterMovement(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	bIsPressingTeleport = false;
 }
 
+
+class FNetworkPredictionData_Client* UShooterCharacterMovement::GetPredictionData_Client() const
+{
+	if (!ClientPredictionData)
+	{
+		UShooterCharacterMovement* MutableThis = const_cast<UShooterCharacterMovement*>(this);
+
+		MutableThis->ClientPredictionData = new FNetworkPredictionData_Client_SCMovement(*this);
+		MutableThis->ClientPredictionData->MaxSmoothNetUpdateDist = 92.f;
+		MutableThis->ClientPredictionData->NoSmoothNetUpdateDist = 140.f;
+	}
+
+	return ClientPredictionData;
+}
 
 float UShooterCharacterMovement::GetMaxSpeed() const
 {
@@ -32,40 +47,27 @@ float UShooterCharacterMovement::GetMaxSpeed() const
 	return MaxSpeed;
 }
 
-FSavedMovePtr UShooterCharacterMovement::AllocateNewMove()
+void UShooterCharacterMovement::DoTeleport()
 {
-	return FSavedMovePtr(new UShooterSavedMove_Character());
+	FVector CharacterForwardVector = CharacterOwner->GetActorForwardVector();
+	FRotator CharacterRotation = CharacterOwner->GetActorRotation();
+	FHitResult Hit;
+	//Perform teleport using UMovementComponent::SafeMoveUpdatedComponent
+	SafeMoveUpdatedComponent(CharacterForwardVector*TeleportDistance, CharacterRotation, true, Hit, ETeleportType::TeleportPhysics);
+
+	SetTeleport(false);
 }
 
-bool UShooterCharacterMovement::DoTeleport(bool bReplayingMoves)
+void UShooterCharacterMovement::SetTeleport(bool IsPressingTeleport)
 {
-	if ( CharacterOwner)
-	{
-		bIsPressingTeleport = true;
-		return true;
-	}
-	
-	return false;
+	bIsPressingTeleport = IsPressingTeleport;
 }
 
 void UShooterCharacterMovement::UpdateFromCompressedFlags(uint8 Flags)
 {
 	Super::UpdateFromCompressedFlags(Flags);
-	
-	AShooterCharacter* ShooterCharacterOwner = Cast<AShooterCharacter>(CharacterOwner);
-	bool bWasPressingTeleport = ShooterCharacterOwner->bPressedTeleport;
-	ShooterCharacterOwner->bPressedTeleport = ((Flags & UShooterSavedMove_Character::FLAG_Custom_0) != 0);
-	if (CharacterOwner->GetLocalRole() == ROLE_Authority)
-	{
-		bIsPressingTeleport = ShooterCharacterOwner->bPressedTeleport;
-		if (bIsPressingTeleport && !bWasPressingTeleport)
-		{
-			ShooterCharacterOwner->OnStartTeleport();
-		}else if(!bIsPressingTeleport)
-		{
-			ShooterCharacterOwner->OnStopTeleport();
-		}
-	}
+
+	bIsPressingTeleport = (Flags & UShooterSavedMove_Character::FLAG_Custom_0) != 0;
 }
 
 void UShooterCharacterMovement::OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation,
@@ -73,33 +75,22 @@ void UShooterCharacterMovement::OnMovementUpdated(float DeltaSeconds, const FVec
 {
 	Super::OnMovementUpdated(DeltaSeconds, OldLocation, OldVelocity);
 	
-	AShooterCharacter* ShooterCharacterOwner = Cast<AShooterCharacter>(CharacterOwner);
-	bIsPressingTeleport = ShooterCharacterOwner->bPressedTeleport;
 	if(bIsPressingTeleport)
 	{
-		FVector CharacterForwardVector = CharacterOwner->GetActorForwardVector();
-		FRotator CharacterRotation = CharacterOwner->GetActorRotation();
-		FHitResult Hit;
-		//Perform teleport using UMovementComponent::SafeMoveUpdatedComponent
-		SafeMoveUpdatedComponent(CharacterForwardVector*TeleportDistance, CharacterRotation, true, Hit, ETeleportType::TeleportPhysics);
-		bIsPressingTeleport = false;
-		ShooterCharacterOwner->bPressedTeleport = false;
+		DoTeleport();
 	}
+}
+
+void UShooterSavedMove_Character::Clear()
+{
+	FSavedMove_Character::Clear();
+	
+	bPressedTeleport = false;
 }
 
 uint8 UShooterSavedMove_Character::GetCompressedFlags() const
 {
-	uint8 Result = 0;
-	//Preserving original implementation
-	if (bPressedJump)
-	{
-		Result |= FLAG_JumpPressed;
-	}
-
-	if (bWantsToCrouch)
-	{
-		Result |= FLAG_WantsToCrouch;
-	}
+	uint8 Result = FSavedMove_Character::GetCompressedFlags();
 
 	//Adding custom flags
 	if(bPressedTeleport)
@@ -108,4 +99,48 @@ uint8 UShooterSavedMove_Character::GetCompressedFlags() const
 	}
 
 	return Result;
+}
+
+void UShooterSavedMove_Character::SetMoveFor(ACharacter* C, float InDeltaTime, FVector const& NewAccel,
+	FNetworkPredictionData_Client_Character& ClientData)
+{
+	FSavedMove_Character::SetMoveFor(C, InDeltaTime, NewAccel, ClientData);
+	
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(CharacterOwner->GetCharacterMovement());
+	if(MovementComponent)
+	{
+		bPressedTeleport = MovementComponent->bIsPressingTeleport;
+	}
+}
+
+void UShooterSavedMove_Character::PrepMoveFor(ACharacter* C)
+{
+	FSavedMove_Character::PrepMoveFor(C);
+	
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(CharacterOwner->GetCharacterMovement());
+	if(MovementComponent)
+	{
+		MovementComponent->SetTeleport(bPressedTeleport);
+	}
+}
+
+bool UShooterSavedMove_Character::CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* InCharacter,
+	float MaxDelta) const
+{
+	if (bPressedTeleport != ((UShooterSavedMove_Character*)&NewMove)->bPressedTeleport)
+		return false;
+	
+	return FSavedMove_Character::CanCombineWith(NewMove, InCharacter, MaxDelta);
+}
+
+
+FNetworkPredictionData_Client_SCMovement::FNetworkPredictionData_Client_SCMovement(const UCharacterMovementComponent& ClientMovement)
+: Super(ClientMovement)
+{
+
+}
+
+FSavedMovePtr FNetworkPredictionData_Client_SCMovement::AllocateNewMove()
+{
+	return FSavedMovePtr(new UShooterSavedMove_Character());
 }

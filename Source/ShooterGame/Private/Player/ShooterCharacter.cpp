@@ -1171,11 +1171,21 @@ void AShooterCharacter::OnStopJump()
 void AShooterCharacter::OnStartTeleport()
 {
 	bPressedTeleport = true;
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
+	if(MovementComponent)
+	{
+		MovementComponent->SetTeleport(true);
+	}
 }
 
 void AShooterCharacter::OnStopTeleport()
 {
 	bPressedTeleport = false;
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
+	if(MovementComponent)
+	{
+		MovementComponent->SetTeleport(false);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
