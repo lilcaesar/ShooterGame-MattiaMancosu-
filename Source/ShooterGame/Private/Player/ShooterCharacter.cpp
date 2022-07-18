@@ -322,6 +322,9 @@ bool AShooterCharacter::Die(float KillingDamage, FDamageEvent const& DamageEvent
 	AController* const KilledPlayer = (Controller != NULL) ? Controller : Cast<AController>(GetOwner());
 	GetWorld()->GetAuthGameMode<AShooterGameMode>()->Killed(Killer, KilledPlayer, this, DamageType);
 
+	//Spawns the KilledPlayer last weapon as a pickup object
+	GetWorld()->GetAuthGameMode<AShooterGameMode>()->SpawnDroppedWeapon(this, CurrentWeapon);
+
 	NetUpdateFrequency = GetDefault<AShooterCharacter>()->NetUpdateFrequency;
 	GetCharacterMovement()->ForceReplicationUpdate();
 
@@ -886,7 +889,6 @@ void AShooterCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 	PlayerInputComponent->BindAction("Run", IE_Released, this, &AShooterCharacter::OnStopRunning);
 	
 	PlayerInputComponent->BindAction("Teleport", IE_Pressed, this, &AShooterCharacter::OnStartTeleport);
-	PlayerInputComponent->BindAction("Teleport", IE_Released, this, &AShooterCharacter::OnStopTeleport);
 }
 
 
@@ -1175,16 +1177,6 @@ void AShooterCharacter::OnStartTeleport()
 	if(MovementComponent)
 	{
 		MovementComponent->SetTeleport(true);
-	}
-}
-
-void AShooterCharacter::OnStopTeleport()
-{
-	bPressedTeleport = false;
-	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
-	if(MovementComponent)
-	{
-		MovementComponent->SetTeleport(false);
 	}
 }
 

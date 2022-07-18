@@ -10,19 +10,48 @@ AShooterPickup_WeaponWithAmmo::AShooterPickup_WeaponWithAmmo(const FObjectInitia
 	RemainingAmmoInClip = 0;
 }
 
-AShooterPickup_WeaponWithAmmo::AShooterPickup_WeaponWithAmmo(const FObjectInitializer& ObjectInitializer, int32 Clips, int32 RemainingAmmo) : Super(ObjectInitializer), RemainingAmmoInClip(RemainingAmmo)
+void AShooterPickup_WeaponWithAmmo::InitialisePickupParameters(int32 RemainingAmmo, EGunType GunType, AShooterWeapon* HeldWeapon)
 {
-	AmmoClips = Clips;
+	AmmoClips = 0;
+	RemainingAmmoInClip = RemainingAmmo;
+
+	//Changing particle effect based on weapon type
+	if(GunType ==EGunType::ERocketLauncher)
+	{		
+		ActiveFX = RocketLauncherPSC;
+	}else
+	{
+		ActiveFX = RiflePSC;
+	}
+
+	//Updating WeaponType so that AShooterCharacter::FindWeapon finds the correct weapon to update
+	WeaponType = HeldWeapon->GetClass();
+
+	//Set self destruct timer
+	GetWorldTimerManager().SetTimer(TimerHandle_SelfDestroy, this, &AShooterPickup_WeaponWithAmmo::SelfDestroy, SelfDestructTimer, false);
+	
+	RespawnPickup();
 }
 
-void AShooterPickup_WeaponWithAmmo::Tick(float DeltaTime)
+void AShooterPickup_WeaponWithAmmo::OnConstruction(const FTransform& Transform)
 {
-	Super::Tick(DeltaTime);
-	SelfDestructTimer -= DeltaTime;
-	if(SelfDestructTimer<0)
+	Super::OnConstruction(Transform);
+}
+
+void AShooterPickup_WeaponWithAmmo::SelfDestroy()
+{
+	Destroy();
+}
+
+bool AShooterPickup_WeaponWithAmmo::CanBePickedUp(AShooterCharacter* TestPawn) const
+{
+	AShooterWeapon* TestWeapon = (TestPawn ? TestPawn->FindWeapon(WeaponType) : NULL);
+	if (bIsActive && TestWeapon)
 	{
-		Destroy();
+		return TestWeapon->GetCurrentAmmo() < TestWeapon->GetMaxAmmo();
 	}
+
+	return false;
 }
 
 void AShooterPickup_WeaponWithAmmo::GivePickupTo(AShooterCharacter* Pawn)
@@ -30,8 +59,8 @@ void AShooterPickup_WeaponWithAmmo::GivePickupTo(AShooterCharacter* Pawn)
 	AShooterWeapon* Weapon = (Pawn ? Pawn->FindWeapon(WeaponType) : NULL);
 	if (Weapon)
 	{
-		//Adding RemainingAmmoInClip to the original implementation
-		int32 Qty = AmmoClips * Weapon->GetAmmoPerClip() + RemainingAmmoInClip;
+		//Changing to RemainingAmmoInClip instead of AmmoClips * Weapon->GetAmmoPerClip() of the original implementation
+		int32 Qty = RemainingAmmoInClip;
 		Weapon->GiveAmmo(Qty);
 
 		// Fire event for collected ammo

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ShooterPickup_WeaponWithAmmo.h"
 #include "ShooterTypes.h"
 #include "ShooterCharacter.generated.h"
 
@@ -203,9 +204,6 @@ class AShooterCharacter : public ACharacter
 	
 	/** player pressed teleport action */
 	void OnStartTeleport();
-	
-	/** player released teleport action */
-	void OnStopTeleport();
 
 	/** When true, player wants to teleport*/ 
 	UPROPERTY(BlueprintReadOnly, Category=Character)
@@ -282,6 +280,9 @@ class AShooterCharacter : public ACharacter
 
 	/** Update the team color of all player meshes. */
 	void UpdateTeamColorsAllMIDs();
+	
+	UPROPERTY(EditDefaultsOnly, Category = Inventory)
+	TSubclassOf<AShooterPickup_WeaponWithAmmo> DefaultSpawnableWeaponClass;
 private:
 
 	/** pawn mesh: 1st person view */

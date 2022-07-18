@@ -13,19 +13,38 @@ UCLASS(Abstract, Blueprintable)
 class SHOOTERGAME_API AShooterPickup_WeaponWithAmmo : public AShooterPickup_Ammo
 {
 	GENERATED_BODY()
-public:
+public:	
+	enum class EGunType
+	{
+		ERifle,
+		ERocketLauncher,
+	};
+	
 	AShooterPickup_WeaponWithAmmo(const FObjectInitializer& ObjectInitializer);
-	AShooterPickup_WeaponWithAmmo(const FObjectInitializer& ObjectInitializer, int32 Clips, int32 RemainingAmmo);
+	void InitialisePickupParameters(int32 RemainingAmmo, EGunType GunType, AShooterWeapon* HeldWeapon);
+	virtual void OnConstruction(const FTransform& Transform) override;
+	/** Called after SelfDestructTimer seconds */
+	void SelfDestroy();
 	
-	virtual void Tick(float DeltaTime) override;
+	/** check if pawn can use this pickup */
+	virtual bool CanBePickedUp(AShooterCharacter* TestPawn) const override;
 	
-protected:
 	UPROPERTY(EditDefaultsOnly, Category=Pickup)
 	int32 RemainingAmmoInClip;
+	
+	/** FX component for Rifle and RocketLauncher*/
+	UPROPERTY(EditDefaultsOnly, Category=Effects)
+	UParticleSystem* RiflePSC;
+	UPROPERTY(EditDefaultsOnly, Category=Effects)
+	UParticleSystem* RocketLauncherPSC;
 	
 	UPROPERTY(EditDefaultsOnly, Category=Pickup)
 	float SelfDestructTimer = 10;
 	
+	/** Handle of SelfDestroy timer */
+	FTimerHandle TimerHandle_SelfDestroy;
+
+protected:	
 	/** give pickup */
 	virtual void GivePickupTo(AShooterCharacter* Pawn) override;
 };

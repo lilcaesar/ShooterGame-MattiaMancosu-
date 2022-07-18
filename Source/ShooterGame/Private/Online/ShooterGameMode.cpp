@@ -6,6 +6,8 @@
 #include "Player/ShooterSpectatorPawn.h"
 #include "Player/ShooterDemoSpectator.h"
 #include "Online/ShooterGameMode.h"
+
+#include "ShooterPickup_WeaponWithAmmo.h"
 #include "Online/ShooterPlayerState.h"
 #include "Online/ShooterGameSession.h"
 #include "Bots/ShooterAIController.h"
@@ -41,6 +43,32 @@ void AShooterGameMode::PostInitProperties()
 	{
 		PlayerControllerClass = PlatformPlayerControllerClass;
 	}
+}
+
+void AShooterGameMode::SpawnDroppedWeapon(AShooterCharacter* ShooterCharacter, AShooterWeapon* ShooterWeapon)
+{
+	FVector SpawnLocation = ShooterCharacter->GetPawnMesh()->GetComponentLocation();
+	FRotator SpawnRotation = ShooterCharacter->GetActorRotation();
+
+	int32 RemainingAmmoInClip = ShooterWeapon->GetCurrentAmmoInClip();
+	AShooterPickup_WeaponWithAmmo::EGunType GunType;
+	switch (ShooterWeapon->GetAmmoType())
+	{
+	case AShooterWeapon::EAmmoType::ERocket:
+			GunType = AShooterPickup_WeaponWithAmmo::EGunType::ERocketLauncher;
+			break;
+		case AShooterWeapon::EAmmoType::EBullet:
+		default:
+			GunType = AShooterPickup_WeaponWithAmmo::EGunType::ERifle;
+			break;
+	}
+
+	//Spawn weapon using the character transform and populating its fields using weapon type and ammo present inside the clip at the time of spawn
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	SpawnParameters.bNoFail = true;
+	AShooterPickup_WeaponWithAmmo* NewWeapon = GetWorld()->SpawnActor<AShooterPickup_WeaponWithAmmo>(ShooterCharacter->DefaultSpawnableWeaponClass, SpawnLocation, SpawnRotation, SpawnParameters);
+	NewWeapon->InitialisePickupParameters(RemainingAmmoInClip, GunType, ShooterWeapon);
 }
 
 FString AShooterGameMode::GetBotsCountOptionName()

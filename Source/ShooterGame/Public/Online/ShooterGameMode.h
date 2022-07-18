@@ -4,6 +4,7 @@
 
 #include "OnlineIdentityInterface.h"
 #include "ShooterPlayerController.h"
+#include "ShooterWeapon.h"
 #include "ShooterGameMode.generated.h"
 
 class AShooterAIController;
@@ -80,6 +81,9 @@ class AShooterGameMode : public AGameMode
 	AShooterAIController* CreateBot(int32 BotNum);	
 
 	virtual void PostInitProperties() override;
+	
+	/** Spawns a weapon as pickup object */
+	void SpawnDroppedWeapon(AShooterCharacter* ShooterCharacter, AShooterWeapon* ShooterWeapon);
 
 protected:
 
