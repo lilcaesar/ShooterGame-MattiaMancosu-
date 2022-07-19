@@ -47,6 +47,16 @@ float UShooterCharacterMovement::GetMaxSpeed() const
 	return MaxSpeed;
 }
 
+bool UShooterCharacterMovement::CanJetpack()
+{
+	//If we are not in the falling state (ex. after jumping) or if we don't have enough fuel we do not activate the jetpack
+	if ((MovementMode != EMovementMode::MOVE_Falling)||(JetpackCurrentFuel <= 0.f))
+	{
+		return false;
+	}
+	return true;
+}
+
 void UShooterCharacterMovement::DoTeleport()
 {
 	FVector CharacterForwardVector = CharacterOwner->GetActorForwardVector();
@@ -58,9 +68,29 @@ void UShooterCharacterMovement::DoTeleport()
 	SetTeleport(false);
 }
 
+void UShooterCharacterMovement::ActivateJetpack()
+{
+}
+
 void UShooterCharacterMovement::SetTeleport(bool IsPressingTeleport)
 {
 	bIsPressingTeleport = IsPressingTeleport;
+}
+
+void UShooterCharacterMovement::SetJetpackState(bool JetpackIsActive)
+{
+	bJetpackIsActive = JetpackIsActive;
+}
+
+void UShooterCharacterMovement::TickComponent(float DeltaTime, ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if(CustomMovementMode != CMM_JETPACK || MovementMode != MOVE_Custom)
+	{
+		JetpackCurrentFuel = FMath::Clamp<float>(JetpackCurrentFuel + (DeltaTime / JetpackMaxFuel), 0.f, JetpackMaxFuel);
+	}
 }
 
 void UShooterCharacterMovement::UpdateFromCompressedFlags(uint8 Flags)
@@ -78,6 +108,56 @@ void UShooterCharacterMovement::OnMovementUpdated(float DeltaSeconds, const FVec
 	if(bIsPressingTeleport)
 	{
 		DoTeleport();
+	}	
+
+	if (bJetpackIsActive)
+	{
+		if (CanJetpack())
+		{
+			SetMovementMode(MOVE_Custom, CMM_JETPACK);
+		}
+	}
+}
+
+void UShooterCharacterMovement::OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode)
+{
+	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
+	if (PreviousMovementMode == MovementMode && PreviousCustomMode == CustomMovementMode)
+	{
+		Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
+	}
+	else if(PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMM_JETPACK)
+	{
+		SetJetpackState(false);
+	}
+}
+
+void UShooterCharacterMovement::PhysCustom(float deltaTime, int32 Iterations)
+{
+	if(CustomMovementMode == ECustomMovementMode::CMM_JETPACK)
+	{
+		PhysJetpacking(deltaTime, Iterations);
+	}
+	Super::PhysCustom(deltaTime, Iterations);
+}
+
+bool UShooterCharacterMovement::IsFalling() const
+{
+	return (Super::IsFalling() || (MovementMode == MOVE_Custom && CustomMovementMode == CMM_JETPACK));
+}
+
+void UShooterCharacterMovement::PhysJetpacking(float deltaTime, int32 Iterations)
+{
+	if (!bJetpackIsActive || JetpackCurrentFuel <= (deltaTime / JetpackMaxFuel))
+	{
+		SetJetpackState(false);
+		SetMovementMode(EMovementMode::MOVE_Falling);
+		StartNewPhysics(deltaTime, Iterations);
+	}else
+	{
+		Velocity.Z += JetpackForce * deltaTime;
+		JetpackCurrentFuel = FMath::Clamp<float>(JetpackCurrentFuel - (deltaTime / JetpackMaxFuel), 0.f, JetpackMaxFuel);
+		PhysFalling(deltaTime, Iterations);
 	}
 }
 
@@ -86,6 +166,7 @@ void UShooterSavedMove_Character::Clear()
 	FSavedMove_Character::Clear();
 	
 	bPressedTeleport = false;
+	bJetpackActivated = false;
 }
 
 uint8 UShooterSavedMove_Character::GetCompressedFlags() const
@@ -110,6 +191,7 @@ void UShooterSavedMove_Character::SetMoveFor(ACharacter* C, float InDeltaTime, F
 	if(MovementComponent)
 	{
 		bPressedTeleport = MovementComponent->bIsPressingTeleport;
+		bJetpackActivated = MovementComponent->bJetpackIsActive;
 	}
 }
 
@@ -121,6 +203,7 @@ void UShooterSavedMove_Character::PrepMoveFor(ACharacter* C)
 	if(MovementComponent)
 	{
 		MovementComponent->SetTeleport(bPressedTeleport);
+		MovementComponent->SetJetpackState(bJetpackActivated);
 	}
 }
 
@@ -128,6 +211,8 @@ bool UShooterSavedMove_Character::CanCombineWith(const FSavedMovePtr& NewMove, A
 	float MaxDelta) const
 {
 	if (bPressedTeleport != ((UShooterSavedMove_Character*)&NewMove)->bPressedTeleport)
+		return false;
+	if (bJetpackActivated != ((UShooterSavedMove_Character*)&NewMove)->bJetpackActivated)
 		return false;
 	
 	return FSavedMove_Character::CanCombineWith(NewMove, InCharacter, MaxDelta);

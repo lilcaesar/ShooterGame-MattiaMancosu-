@@ -10,6 +10,11 @@
 class UShooterSavedMove_Character;
 class UShooterCharacterMovement;
 
+enum ECustomMovementMode
+{
+	CMM_JETPACK = 0
+};
+
 UCLASS()
 class UShooterCharacterMovement : public UCharacterMovementComponent
 {
@@ -20,21 +25,46 @@ class UShooterCharacterMovement : public UCharacterMovementComponent
 	//Teleport distance in centimeters, default is 1000 (10 meters)
 	UPROPERTY(EditAnywhere, Category = "Teleport")
 	float TeleportDistance = 1000.f;
+	
+	UPROPERTY(BlueprintReadWrite, Category=Character)
+	float JetpackMaxFuel = 5.0;
+	
+	UPROPERTY(BlueprintReadWrite, Category=Character)
+	float JetpackCurrentFuel;
+
+	UPROPERTY(BlueprintReadWrite, Category=Character)
+	float JetpackForce = 10000;
 
 	virtual float GetMaxSpeed() const override;	
 
+	bool CanJetpack();
+	
 	//Performs actual teleport
-	virtual void DoTeleport();
+	void DoTeleport();
+	//Fires the jetpack
+	void ActivateJetpack();
 	
 	void SetTeleport(bool IsPressingTeleport);
+	void SetJetpackState(bool JetpackIsActive);
 
 	/* True if teleport button is being pressed */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Teleport")
 	bool bIsPressingTeleport;
+
+	/* True if Jetpack is firing */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Teleport")
+	bool bJetpackIsActive;
 	
 protected:
+	//Overrides
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
+	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
+	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
+	virtual bool IsFalling() const override;
+	
+	void PhysJetpacking(float deltaTime, int32 Iterations);
 };
 
 class UShooterSavedMove_Character : public FSavedMove_Character
@@ -47,6 +77,7 @@ public:
 	virtual bool CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* InCharacter, float MaxDelta) const override;
 	
 	uint32 bPressedTeleport:1;
+	uint32 bJetpackActivated:1;
 };
 
 class FNetworkPredictionData_Client_SCMovement : public FNetworkPredictionData_Client_Character

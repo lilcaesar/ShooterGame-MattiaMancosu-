@@ -204,10 +204,6 @@ class AShooterCharacter : public ACharacter
 	
 	/** player pressed teleport action */
 	void OnStartTeleport();
-
-	/** When true, player wants to teleport*/ 
-	UPROPERTY(BlueprintReadOnly, Category=Character)
-	uint32 bPressedTeleport:1;
 	
 	//////////////////////////////////////////////////////////////////////////
 	// Reading data

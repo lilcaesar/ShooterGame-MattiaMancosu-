@@ -1162,17 +1162,28 @@ void AShooterCharacter::OnStartJump()
 	{
 		bPressedJump = true;
 	}
+	
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
+	if(MovementComponent)
+	{
+		MovementComponent->SetJetpackState(true);
+	}
 }
 
 void AShooterCharacter::OnStopJump()
 {
 	bPressedJump = false;
 	StopJumping();
+	
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
+	if(MovementComponent)
+	{
+		MovementComponent->SetJetpackState(false);
+	}
 }
 
 void AShooterCharacter::OnStartTeleport()
 {
-	bPressedTeleport = true;
 	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
 	if(MovementComponent)
 	{
