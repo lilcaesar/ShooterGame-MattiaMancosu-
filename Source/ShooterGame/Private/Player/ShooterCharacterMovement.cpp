@@ -3,6 +3,8 @@
 #include "ShooterGame.h"
 #include "Player/ShooterCharacterMovement.h"
 
+#include <string>
+
 //----------------------------------------------------------------------//
 // UPawnMovementComponent
 //----------------------------------------------------------------------//
@@ -10,6 +12,8 @@ UShooterCharacterMovement::UShooterCharacterMovement(const FObjectInitializer& O
 	: Super(ObjectInitializer)
 {
 	bIsPressingTeleport = false;
+	bJetpackIsActive = false;
+	JetpackCurrentFuel = JetpackMaxFuel;
 }
 
 
@@ -68,10 +72,6 @@ void UShooterCharacterMovement::DoTeleport()
 	SetTeleport(false);
 }
 
-void UShooterCharacterMovement::ActivateJetpack()
-{
-}
-
 void UShooterCharacterMovement::SetTeleport(bool IsPressingTeleport)
 {
 	bIsPressingTeleport = IsPressingTeleport;
@@ -79,11 +79,42 @@ void UShooterCharacterMovement::SetTeleport(bool IsPressingTeleport)
 
 void UShooterCharacterMovement::SetJetpackState(bool JetpackIsActive)
 {
+	
+	if(bJetpackIsActive != JetpackIsActive)
+	{
+		PerformJetpackStateChange(JetpackIsActive);
+		if(CharacterOwner->GetLocalRole() == ROLE_Authority)
+		{
+			ClientSetJetpackState(JetpackIsActive);
+		}else
+		{
+			ServerSetJetpackState(JetpackIsActive);
+		}
+	}
+}
+
+void UShooterCharacterMovement::PerformJetpackStateChange(bool JetpackIsActive)
+{
 	bJetpackIsActive = JetpackIsActive;
 }
 
+void UShooterCharacterMovement::ClientSetJetpackState_Implementation(bool JetpackState)
+{
+	PerformJetpackStateChange(JetpackState);
+}
+
+void UShooterCharacterMovement::ServerSetJetpackState_Implementation(bool JetpackState)
+{
+	PerformJetpackStateChange(JetpackState);
+}
+
+bool UShooterCharacterMovement::ServerSetJetpackState_Validate(bool JetpackState)
+{
+	return true;
+}
+
 void UShooterCharacterMovement::TickComponent(float DeltaTime, ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction)
+                                              FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
@@ -143,6 +174,7 @@ void UShooterCharacterMovement::PhysCustom(float deltaTime, int32 Iterations)
 
 bool UShooterCharacterMovement::IsFalling() const
 {
+	//We consider Jetpacking as falling
 	return (Super::IsFalling() || (MovementMode == MOVE_Custom && CustomMovementMode == CMM_JETPACK));
 }
 
@@ -157,7 +189,8 @@ void UShooterCharacterMovement::PhysJetpacking(float deltaTime, int32 Iterations
 	{
 		Velocity.Z += JetpackForce * deltaTime;
 		JetpackCurrentFuel = FMath::Clamp<float>(JetpackCurrentFuel - (deltaTime / JetpackMaxFuel), 0.f, JetpackMaxFuel);
-		PhysFalling(deltaTime, Iterations);
+		//Applies gravity and all the falling state related physics
+  		PhysFalling(deltaTime, Iterations);
 	}
 }
 

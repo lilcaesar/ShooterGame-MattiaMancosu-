@@ -26,14 +26,14 @@ class UShooterCharacterMovement : public UCharacterMovementComponent
 	UPROPERTY(EditAnywhere, Category = "Teleport")
 	float TeleportDistance = 1000.f;
 	
-	UPROPERTY(BlueprintReadWrite, Category=Character)
-	float JetpackMaxFuel = 5.0;
+	UPROPERTY(BlueprintReadWrite, Category= "Jetpack")
+	float JetpackMaxFuel = 1.0;
 	
-	UPROPERTY(BlueprintReadWrite, Category=Character)
+	UPROPERTY(BlueprintReadWrite, Category= "Jetpack")
 	float JetpackCurrentFuel;
 
-	UPROPERTY(BlueprintReadWrite, Category=Character)
-	float JetpackForce = 10000;
+	UPROPERTY(BlueprintReadWrite, Category= "Jetpack")
+	float JetpackForce = 5000;
 
 	virtual float GetMaxSpeed() const override;	
 
@@ -41,11 +41,16 @@ class UShooterCharacterMovement : public UCharacterMovementComponent
 	
 	//Performs actual teleport
 	void DoTeleport();
-	//Fires the jetpack
-	void ActivateJetpack();
 	
 	void SetTeleport(bool IsPressingTeleport);
 	void SetJetpackState(bool JetpackIsActive);
+	void PerformJetpackStateChange(bool JetpackIsActive);
+
+	
+	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable)
+		void ServerSetJetpackState(bool JetpackState);
+	UFUNCTION(Client, Reliable, BlueprintCallable)
+		void ClientSetJetpackState(bool JetpackState);
 
 	/* True if teleport button is being pressed */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Teleport")
