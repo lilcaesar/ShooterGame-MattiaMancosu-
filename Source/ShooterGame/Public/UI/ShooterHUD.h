@@ -237,6 +237,18 @@ protected:
 	/** Podium icon. */
 	UPROPERTY()
 	FCanvasIcon PlaceIcon;
+	
+	/** Jetpack icon. */
+	UPROPERTY()
+	FCanvasIcon JetpackIcon;
+	
+	/** Jetpack fuel bar icon. */
+	UPROPERTY()
+	FCanvasIcon JetpackFuelBar;
+	
+	/** Jetpack fuel bar background icon. */
+	UPROPERTY()
+	FCanvasIcon JetpackFuelBarBG;
 
 	/** UI scaling factor for other resolutions than Full HD. */
 	float ScaleUI;
@@ -270,6 +282,14 @@ protected:
 	/** Texture for HUD elements. */
 	UPROPERTY()
 	UTexture2D* HUDAssets02Texture;
+
+	/** Texture for Jetpack elements. */
+	UPROPERTY()
+	UTexture2D* HUDAssets02TextureJetpack;
+	
+	/** Texture for Jetpack icon. */
+	UPROPERTY()
+	UTexture2D* JetpackIconTexture;
 
 	/** Overlay shown when health is low. */
 	UPROPERTY()
@@ -348,7 +368,10 @@ protected:
 	void DrawNVIDIAReflexTimers();
 
 	/** Draw Performance timer */
-	void DrawPerfTimer(const FString& Label, const FString& Value, float PosX, float PosY);
+	void DrawPerfTimer(const FString& Label, const FString& Value, float PosX, float PosY);	
+
+	/** Draw player's Jetpack fuel bar. */
+	void DrawJetpack();
 
 	/** Delegate for telling other methods when players have started/stopped talking */
 	FOnPlayerTalkingStateChangedDelegate OnPlayerTalkingStateChangedDelegate;

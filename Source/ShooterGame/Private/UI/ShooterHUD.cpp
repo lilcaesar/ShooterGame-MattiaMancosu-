@@ -37,6 +37,8 @@ AShooterHUD::AShooterHUD(const FObjectInitializer& ObjectInitializer) : Super(Ob
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HUDMainTextureOb(TEXT("/Game/UI/HUD/HUDMain"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HUDAssets02TextureOb(TEXT("/Game/UI/HUD/HUDAssets02"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> LowHealthOverlayTextureOb(TEXT("/Game/UI/HUD/LowHealthOverlay"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> HUDAssetsTextureJetpackOb(TEXT("/Game/UI/HUD/HUDAssetsJetpack"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> JetpackIconTextureOb(TEXT("/Game/UI/HUD/JetpackIcon"));
 
 	// Fonts are not included in dedicated server builds.
 	#if !UE_SERVER
@@ -52,6 +54,10 @@ AShooterHUD::AShooterHUD(const FObjectInitializer& ObjectInitializer) : Super(Ob
 	HUDMainTexture = HUDMainTextureOb.Object;
 	HUDAssets02Texture = HUDAssets02TextureOb.Object;
 	LowHealthOverlayTexture = LowHealthOverlayTextureOb.Object;
+	
+	HUDAssets02TextureJetpack = HUDAssetsTextureJetpackOb.Object;
+	JetpackIconTexture = JetpackIconTextureOb.Object;
+	
 
 	HitNotifyIcon[EShooterHudPosition::Left] = UCanvas::MakeIcon(HitNotifyTexture,  158, 831, 585, 392);	
 	HitNotifyIcon[EShooterHudPosition::FrontLeft] = UCanvas::MakeIcon(HitNotifyTexture, 369, 434, 460, 378);	
@@ -68,6 +74,7 @@ AShooterHUD::AShooterHUD(const FObjectInitializer& ObjectInitializer) : Super(Ob
 	SecondaryWeapBg = UCanvas::MakeIcon(HUDMainTexture, 676, 111, 293, 50);
 
 	DeathMessagesBg = UCanvas::MakeIcon(HUDMainTexture, 502, 177, 342, 187);
+	
 	HealthBar = UCanvas::MakeIcon(HUDAssets02Texture, 67, 212, 372, 50);
 	HealthBarBg = UCanvas::MakeIcon(HUDAssets02Texture, 67, 162, 372, 50);
 
@@ -76,6 +83,10 @@ AShooterHUD::AShooterHUD(const FObjectInitializer& ObjectInitializer) : Super(Ob
 	TimerIcon = UCanvas::MakeIcon(HUDMainTexture, 381, 93, 24, 24);
 	KilledIcon = UCanvas::MakeIcon(HUDMainTexture, 425, 92, 38, 36);
 	PlaceIcon = UCanvas::MakeIcon(HUDMainTexture, 250, 468, 21, 28);
+
+	JetpackFuelBar = UCanvas::MakeIcon(HUDAssets02TextureJetpack, 67, 212, 372, 50);
+	JetpackFuelBarBG = UCanvas::MakeIcon(HUDAssets02Texture, 67, 162, 372, 50);
+	JetpackIcon = UCanvas::MakeIcon(JetpackIconTexture);
 
 	Crosshair[EShooterCrosshairDirection::Left] = UCanvas::MakeIcon(HUDMainTexture, 43, 402, 25, 9); // left
 	Crosshair[EShooterCrosshairDirection::Right] = UCanvas::MakeIcon(HUDMainTexture, 88, 402, 25, 9); // right
@@ -645,6 +656,7 @@ void AShooterHUD::DrawHUD()
 		{
 			DrawHealth();
 			DrawWeaponHUD();
+			DrawJetpack();
 		}
 		else
 		{
@@ -964,6 +976,29 @@ void AShooterHUD::DrawPerfTimer(const FString& Label, const FString& Value, floa
 	ValueItem.FontRenderInfo = ShadowedFont;
 	ValueItem.Scale = FVector2D(ScaleUI, ScaleUI);
 	Canvas->DrawItem(ValueItem);
+}
+
+void AShooterHUD::DrawJetpack()
+{
+	AShooterCharacter* MyPawn = Cast<AShooterCharacter>(GetOwningPawn());
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(MyPawn->GetCharacterMovement());
+	//Draw only during changes (use or recharge) in order to keep the screen clean when possible
+	if(MovementComponent->JetpackCurrentFuel != MovementComponent->JetpackMaxFuel)
+	{
+		Canvas->SetDrawColor(FColor::White);
+		const float JetpackPosX = (Canvas->ClipX - JetpackFuelBarBG.UL * ScaleUI) / 2;
+		const float JetpackPosY = (Offset + JetpackFuelBarBG.VL) * ScaleUI;
+		Canvas->DrawIcon(JetpackFuelBarBG, JetpackPosX, JetpackPosY, ScaleUI);
+		const float JetpackFuelAmount =  FMath::Min(1.0f,MovementComponent->JetpackCurrentFuel / MovementComponent->JetpackMaxFuel);
+
+		FCanvasTileItem TileItem(FVector2D(JetpackPosX,JetpackPosY), JetpackFuelBar.Texture->Resource, 
+								 FVector2D(JetpackFuelBar.UL * JetpackFuelAmount  * ScaleUI, JetpackFuelBar.VL * ScaleUI), FLinearColor::White);
+		MakeUV(JetpackFuelBar, TileItem.UV0, TileItem.UV1, JetpackFuelBar.U, JetpackFuelBar.V, JetpackFuelBar.UL * JetpackFuelAmount, JetpackFuelBar.VL);  
+		TileItem.BlendMode = SE_BLEND_Translucent;
+		Canvas->DrawItem(TileItem);
+
+		Canvas->DrawIcon(JetpackIcon,JetpackPosX + Offset * ScaleUI, JetpackPosY + (JetpackFuelBar.VL - JetpackIcon.VL) / 2.0f * ScaleUI, ScaleUI);
+	}
 }
 
 void AShooterHUD::NotifyWeaponHit(float DamageTaken, struct FDamageEvent const& DamageEvent, class APawn* PawnInstigator)
