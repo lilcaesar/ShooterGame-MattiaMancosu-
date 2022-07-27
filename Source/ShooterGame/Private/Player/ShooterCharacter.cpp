@@ -67,6 +67,14 @@ AShooterCharacter::AShooterCharacter(const FObjectInitializer& ObjectInitializer
 
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
+
+	WalljumpCapsuleComponent = CreateDefaultSubobject<UCapsuleComponent>(FName("WalljumpCapsuleComponent"));
+	WalljumpCapsuleComponent->InitCapsuleSize(80.0f, 80.0f);
+	WalljumpCapsuleComponent->SetGenerateOverlapEvents(true);
+	WalljumpCapsuleComponent->CanCharacterStepUp(false);
+	WalljumpCapsuleComponent ->BodyInstance.SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	WalljumpCapsuleComponent ->BodyInstance.SetResponseToAllChannels(ECR_Overlap);
+	WalljumpCapsuleComponent->SetupAttachment(GetCapsuleComponent());
 }
 
 void AShooterCharacter::PostInitializeComponents()
@@ -552,6 +560,27 @@ void AShooterCharacter::TornOff()
 	SetLifeSpan(25.f);
 }
 
+void AShooterCharacter::OnCapsuleHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
+{
+	//If we are falling we consider the collision location as a possible starting point for the walljump
+	if(GetCharacterMovement()->IsFalling() && (OtherActor != nullptr) && (OtherActor != this) && (OtherComponent != nullptr))
+	{
+		CollisionWalljumpDirection = GetActorLocation() - Hit.ImpactPoint;
+		CollisionWalljumpDirection.Normalize(1.f);
+		CollidedObjectUniqueID = OtherActor->GetUniqueID();
+	}
+}
+
+void AShooterCharacter::OnCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherIndex)
+{
+	//Clear the walljump direction vectorIf we end overlapping the object we can use to walljump from
+	if(OtherActor->GetUniqueID() == CollidedObjectUniqueID)
+	{
+		CollisionWalljumpDirection = FVector::ZeroVector;
+	}
+}
+
 bool AShooterCharacter::IsMoving()
 {
 	return FMath::Abs(GetLastMovementInputVector().Size()) > 0.f;
@@ -889,6 +918,9 @@ void AShooterCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 	PlayerInputComponent->BindAction("Run", IE_Released, this, &AShooterCharacter::OnStopRunning);
 	
 	PlayerInputComponent->BindAction("Teleport", IE_Pressed, this, &AShooterCharacter::OnStartTeleport);
+	
+	PlayerInputComponent->BindAction("Jetpack", IE_Pressed, this, &AShooterCharacter::OnStartJetpack);
+	PlayerInputComponent->BindAction("Jetpack", IE_Released, this, &AShooterCharacter::OnStopJetpack);
 }
 
 
@@ -1141,6 +1173,16 @@ void AShooterCharacter::Tick(float DeltaSeconds)
 	}
 }
 
+void AShooterCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	//Adding a dynamic delegate to handle the wall jump surface
+	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &AShooterCharacter::OnCapsuleHit);
+	//Using OnComponentEndOverlap on a slightly bigger volume in order to keep the walljump possible while near another object. At the same time avoiding setting CollisionWalljumpDirection to zero inside when not colliding Tick
+	WalljumpCapsuleComponent->OnComponentEndOverlap.AddDynamic(this, &AShooterCharacter::OnCapsuleEndOverlap);
+}
+
 void AShooterCharacter::BeginDestroy()
 {
 	Super::BeginDestroy();
@@ -1161,12 +1203,15 @@ void AShooterCharacter::OnStartJump()
 	if (MyPC && MyPC->IsGameInputAllowed())
 	{
 		bPressedJump = true;
-	}
-	
-	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
-	if(MovementComponent)
-	{
-		MovementComponent->SetJetpackState(true);
+		//If we are falling and we have a valid walljump direction we perform the walljump
+		if(GetCharacterMovement()->IsFalling() && (CollisionWalljumpDirection != FVector::ZeroVector))
+		{
+			UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
+			if(MovementComponent)
+			{
+				MovementComponent->SetWalljump(true);
+			}
+		}
 	}
 }
 
@@ -1174,12 +1219,6 @@ void AShooterCharacter::OnStopJump()
 {
 	bPressedJump = false;
 	StopJumping();
-	
-	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
-	if(MovementComponent)
-	{
-		MovementComponent->SetJetpackState(false);
-	}
 }
 
 void AShooterCharacter::OnStartTeleport()
@@ -1188,6 +1227,24 @@ void AShooterCharacter::OnStartTeleport()
 	if(MovementComponent)
 	{
 		MovementComponent->SetTeleport(true);
+	}
+}
+
+void AShooterCharacter::OnStartJetpack()
+{	
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
+	if(MovementComponent)
+	{
+		MovementComponent->SetJetpack(true);
+	}
+}
+
+void AShooterCharacter::OnStopJetpack()
+{	
+	UShooterCharacterMovement *MovementComponent = Cast<UShooterCharacterMovement>(GetCharacterMovement());
+	if(MovementComponent)
+	{
+		MovementComponent->SetJetpack(false);
 	}
 }
 

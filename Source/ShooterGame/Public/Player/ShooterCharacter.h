@@ -14,6 +14,8 @@ class AShooterCharacter : public ACharacter
 {
 	GENERATED_UCLASS_BODY()
 
+	virtual void BeginPlay() override;
+	
 	virtual void BeginDestroy() override;
 
 	/** spawn inventory, setup initial variables */
@@ -204,6 +206,12 @@ class AShooterCharacter : public ACharacter
 	
 	/** player pressed teleport action */
 	void OnStartTeleport();
+
+	/** player pressed jetpack action */
+	void OnStartJetpack();
+
+	/** player released jetpack action */
+	void OnStopJetpack();
 	
 	//////////////////////////////////////////////////////////////////////////
 	// Reading data
@@ -279,6 +287,11 @@ class AShooterCharacter : public ACharacter
 	
 	UPROPERTY(EditDefaultsOnly, Category = Inventory)
 	TSubclassOf<AShooterPickup_WeaponWithAmmo> DefaultSpawnableWeaponClass;
+
+	//Direction of the current collision suitable for a walljump
+	FVector CollisionWalljumpDirection;
+
+	uint32 CollidedObjectUniqueID;
 private:
 
 	/** pawn mesh: 1st person view */
@@ -395,6 +408,18 @@ protected:
 
 	/** Responsible for cleaning up bodies on clients. */
 	virtual void TornOff();
+
+	/** A CapsuleComponent being used for detecting overlaps with other actors for walljumping. */
+	UPROPERTY(Category=Character, VisibleAnywhere, BlueprintReadOnly, meta=(AllowPrivateAccess = "true"))
+	UCapsuleComponent* WalljumpCapsuleComponent;
+
+	//Handles collision behaviour for the root CapsuleComponent
+	UFUNCTION()
+	void OnCapsuleHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
+
+	//Handles end overlap behaviour for the WalljumpCapsuleComponent
+	UFUNCTION()
+	void OnCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherIndex);
 
 private:
 

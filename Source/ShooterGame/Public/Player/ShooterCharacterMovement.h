@@ -41,24 +41,26 @@ class UShooterCharacterMovement : public UCharacterMovementComponent
 	
 	//Performs actual teleport
 	void DoTeleport();
-	
+	//Sets bIsPressingTeleport boolean used to trigger teleport
 	void SetTeleport(bool IsPressingTeleport);
-	void SetJetpackState(bool JetpackIsActive);
-	void PerformJetpackStateChange(bool JetpackIsActive);
-
-	
-	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable)
-		void ServerSetJetpackState(bool JetpackState);
-	UFUNCTION(Client, Reliable, BlueprintCallable)
-		void ClientSetJetpackState(bool JetpackState);
+	//Sets bJetpackIsActive boolean used to trigger jetpack
+	void SetJetpack(bool JetpackIsActive);
+	//Sets bIsPressingWalljump boolean used to trigger the walljump
+	void SetWalljump(bool IsWallJumping);
+	//Performs the walljump
+	void PerformWalljump();
 
 	/* True if teleport button is being pressed */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Teleport")
 	bool bIsPressingTeleport;
 
 	/* True if Jetpack is firing */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Teleport")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Jetpack")
 	bool bJetpackIsActive;
+	
+	/* True if walljump button is being pressed */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Walljump")
+	bool bIsPressingWalljump;
 	
 protected:
 	//Overrides
@@ -68,7 +70,8 @@ protected:
 	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
 	virtual bool IsFalling() const override;
-	
+
+	//Jetpack physics used in custom physics
 	void PhysJetpacking(float deltaTime, int32 Iterations);
 };
 
@@ -83,6 +86,7 @@ public:
 	
 	uint32 bPressedTeleport:1;
 	uint32 bJetpackActivated:1;
+	uint32 bPressedWalljump:1;
 };
 
 class FNetworkPredictionData_Client_SCMovement : public FNetworkPredictionData_Client_Character

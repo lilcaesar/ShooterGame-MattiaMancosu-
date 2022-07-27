@@ -14,6 +14,7 @@ UShooterCharacterMovement::UShooterCharacterMovement(const FObjectInitializer& O
 	bIsPressingTeleport = false;
 	bJetpackIsActive = false;
 	JetpackCurrentFuel = JetpackMaxFuel;
+	bIsPressingWalljump = false;
 }
 
 
@@ -53,8 +54,8 @@ float UShooterCharacterMovement::GetMaxSpeed() const
 
 bool UShooterCharacterMovement::CanJetpack()
 {
-	//If we are not in the falling state (ex. after jumping) or if we don't have enough fuel we do not activate the jetpack
-	if ((MovementMode != EMovementMode::MOVE_Falling)||(JetpackCurrentFuel <= 0.f))
+	//If we don't have enough fuel we do not activate the jetpack
+	if (JetpackCurrentFuel <= 0.f)
 	{
 		return false;
 	}
@@ -77,40 +78,22 @@ void UShooterCharacterMovement::SetTeleport(bool IsPressingTeleport)
 	bIsPressingTeleport = IsPressingTeleport;
 }
 
-void UShooterCharacterMovement::SetJetpackState(bool JetpackIsActive)
-{
-	
-	if(bJetpackIsActive != JetpackIsActive)
-	{
-		PerformJetpackStateChange(JetpackIsActive);
-		if(CharacterOwner->GetLocalRole() == ROLE_Authority)
-		{
-			ClientSetJetpackState(JetpackIsActive);
-		}else
-		{
-			ServerSetJetpackState(JetpackIsActive);
-		}
-	}
-}
-
-void UShooterCharacterMovement::PerformJetpackStateChange(bool JetpackIsActive)
+void UShooterCharacterMovement::SetJetpack(bool JetpackIsActive)
 {
 	bJetpackIsActive = JetpackIsActive;
 }
 
-void UShooterCharacterMovement::ClientSetJetpackState_Implementation(bool JetpackState)
+void UShooterCharacterMovement::SetWalljump(bool IsWallJumping)
 {
-	PerformJetpackStateChange(JetpackState);
+	bIsPressingWalljump = IsWallJumping;
 }
 
-void UShooterCharacterMovement::ServerSetJetpackState_Implementation(bool JetpackState)
+void UShooterCharacterMovement::PerformWalljump()
 {
-	PerformJetpackStateChange(JetpackState);
-}
-
-bool UShooterCharacterMovement::ServerSetJetpackState_Validate(bool JetpackState)
-{
-	return true;
+	const AShooterCharacter* ShooterCharacterOwner = Cast<AShooterCharacter>(PawnOwner);
+	//The walljump is combines the force of the jump applied in the direction of the object we are jumping from plus a normal jump to add a bit of height
+	Velocity += FVector(0,0,JumpZVelocity)+(ShooterCharacterOwner->CollisionWalljumpDirection*JumpZVelocity);
+	SetWalljump(false);
 }
 
 void UShooterCharacterMovement::TickComponent(float DeltaTime, ELevelTick TickType,
@@ -129,6 +112,8 @@ void UShooterCharacterMovement::UpdateFromCompressedFlags(uint8 Flags)
 	Super::UpdateFromCompressedFlags(Flags);
 
 	bIsPressingTeleport = (Flags & UShooterSavedMove_Character::FLAG_Custom_0) != 0;
+	bIsPressingWalljump = (Flags & UShooterSavedMove_Character::FLAG_Custom_1) != 0;
+	bJetpackIsActive = (Flags & UShooterSavedMove_Character::FLAG_Custom_2) != 0;
 }
 
 void UShooterCharacterMovement::OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation,
@@ -148,6 +133,11 @@ void UShooterCharacterMovement::OnMovementUpdated(float DeltaSeconds, const FVec
 			SetMovementMode(MOVE_Custom, CMM_JETPACK);
 		}
 	}
+
+	if(bIsPressingWalljump)
+	{
+		PerformWalljump();
+	}
 }
 
 void UShooterCharacterMovement::OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode)
@@ -159,7 +149,7 @@ void UShooterCharacterMovement::OnMovementModeChanged(EMovementMode PreviousMove
 	}
 	else if(PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMM_JETPACK)
 	{
-		SetJetpackState(false);
+		SetJetpack(false);
 	}
 }
 
@@ -182,7 +172,7 @@ void UShooterCharacterMovement::PhysJetpacking(float deltaTime, int32 Iterations
 {
 	if (!bJetpackIsActive || JetpackCurrentFuel <= (deltaTime / JetpackMaxFuel))
 	{
-		SetJetpackState(false);
+		SetJetpack(false);
 		SetMovementMode(EMovementMode::MOVE_Falling);
 		StartNewPhysics(deltaTime, Iterations);
 	}else
@@ -200,6 +190,7 @@ void UShooterSavedMove_Character::Clear()
 	
 	bPressedTeleport = false;
 	bJetpackActivated = false;
+	bPressedWalljump = false;
 }
 
 uint8 UShooterSavedMove_Character::GetCompressedFlags() const
@@ -210,6 +201,14 @@ uint8 UShooterSavedMove_Character::GetCompressedFlags() const
 	if(bPressedTeleport)
 	{
 		Result |= FLAG_Custom_0;
+	}
+	if(bPressedWalljump)
+	{
+		Result |= FLAG_Custom_1;
+	}
+	if(bJetpackActivated)
+	{
+		Result |= FLAG_Custom_2;
 	}
 
 	return Result;
@@ -225,6 +224,7 @@ void UShooterSavedMove_Character::SetMoveFor(ACharacter* C, float InDeltaTime, F
 	{
 		bPressedTeleport = MovementComponent->bIsPressingTeleport;
 		bJetpackActivated = MovementComponent->bJetpackIsActive;
+		bPressedWalljump = MovementComponent->bIsPressingWalljump;
 	}
 }
 
@@ -236,7 +236,8 @@ void UShooterSavedMove_Character::PrepMoveFor(ACharacter* C)
 	if(MovementComponent)
 	{
 		MovementComponent->SetTeleport(bPressedTeleport);
-		MovementComponent->SetJetpackState(bJetpackActivated);
+		MovementComponent->SetJetpack(bJetpackActivated);
+		MovementComponent->SetWalljump(bPressedWalljump);
 	}
 }
 
@@ -246,6 +247,8 @@ bool UShooterSavedMove_Character::CanCombineWith(const FSavedMovePtr& NewMove, A
 	if (bPressedTeleport != ((UShooterSavedMove_Character*)&NewMove)->bPressedTeleport)
 		return false;
 	if (bJetpackActivated != ((UShooterSavedMove_Character*)&NewMove)->bJetpackActivated)
+		return false;
+	if (bPressedWalljump != ((UShooterSavedMove_Character*)&NewMove)->bPressedWalljump)
 		return false;
 	
 	return FSavedMove_Character::CanCombineWith(NewMove, InCharacter, MaxDelta);
